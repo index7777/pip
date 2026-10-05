@@ -173,6 +173,7 @@
     }
 
     function updatePiPButton() {
+      if (pipBtn.dataset.mode === 'youtube') return;
       const supported = hasStandardPiP() || hasWebkitPresentationMode();
       pipBtn.disabled = !video.src || !supported;
 
@@ -216,12 +217,15 @@
       youtubePlayer.src = 'https://www.youtube.com/embed/' + encodeURIComponent(id) +
         '?playsinline=1&enablejsapi=1&origin=' + origin;
       playBtn.disabled = true;
-      pipBtn.disabled = true;
+      pipBtn.disabled = false;
+      pipBtn.textContent = 'YouTube PiP';
+      pipBtn.dataset.mode = 'youtube';
       fullBtn.disabled = true;
-      setStatus('YouTube 已載入。請使用 YouTube 播放器內的控制項播放；PiP 是否出現由 YouTube 與瀏覽器決定。');
+      setStatus('YouTube 已載入。先在播放器中播放，再按「YouTube PiP」查看手機上的 PiP 操作方式。');
     }
 
     function enablePlayer() {
+      pipBtn.dataset.mode = 'native';
       playBtn.disabled = false;
       fullBtn.disabled = false;
       updatePiPButton();
@@ -288,6 +292,19 @@
     });
 
     pipBtn.addEventListener('click', async () => {
+      if (pipBtn.dataset.mode === 'youtube') {
+        const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isAndroid = /Android/i.test(navigator.userAgent);
+        if (isiOS) {
+          setStatus('YouTube 模式：先播放影片並嘗試全螢幕，再點播放器/系統提供的子母畫面按鈕，或播放後回主畫面。網頁無法直接控制 YouTube iframe 的 PiP。');
+        } else if (isAndroid) {
+          setStatus('YouTube 模式：先播放影片，再使用播放器或瀏覽器提供的 PiP；部分 Android 裝置可在播放時回主畫面觸發。網頁無法直接控制 YouTube iframe 的 PiP。');
+        } else {
+          setStatus('YouTube 是跨來源 iframe，這個網頁不能直接呼叫其中影片的 PiP。請使用 YouTube 播放器或瀏覽器提供的 PiP 功能。');
+        }
+        return;
+      }
       try {
         if (video.paused) {
           await video.play();
