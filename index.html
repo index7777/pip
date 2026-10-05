@@ -83,6 +83,7 @@
       opacity: .45;
       cursor: not-allowed;
     }
+    .hidden { display: none !important; }
     .url-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 14px; }
     .url-row input {
       min-width: 0; min-height: 50px; border: 1px solid #343b45; border-radius: 14px;
@@ -202,6 +203,9 @@
     }
 
     function showNativeVideo() {
+      playBtn.classList.remove('hidden');
+      fullBtn.classList.remove('hidden');
+      pipBtn.classList.remove('hidden');
       youtubePlayer.style.display = 'none';
       youtubePlayer.src = '';
       video.style.display = 'block';
@@ -213,15 +217,18 @@
       video.load();
       video.style.display = 'none';
       youtubePlayer.style.display = 'block';
+      playBtn.classList.add('hidden');
+      fullBtn.classList.add('hidden');
+      pipBtn.classList.add('hidden');
       const origin = encodeURIComponent(location.origin);
       youtubePlayer.src = 'https://www.youtube.com/embed/' + encodeURIComponent(id) +
-        '?playsinline=1&enablejsapi=1&origin=' + origin + '&autoplay=0';
+        '?playsinline=1&enablejsapi=1&origin=' + origin + '&autoplay=0&controls=1&fs=1&rel=0';
       playBtn.disabled = true;
       pipBtn.disabled = false;
       pipBtn.textContent = 'YouTube PiP';
       pipBtn.dataset.mode = 'youtube';
       fullBtn.disabled = true;
-      setStatus('YouTube 已載入。先在播放器中播放，再按「YouTube PiP」查看手機上的 PiP 操作方式。');
+      setStatus('YouTube 已載入。請直接點影片中央播放；全螢幕請使用 YouTube 播放器右下角的全螢幕按鈕。');
     }
 
     function enablePlayer() {
