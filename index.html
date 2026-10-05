@@ -156,6 +156,47 @@
     const status = document.getElementById('status');
 
     let objectUrl = '';
+    let ytPlayer = null;
+    let ytReady = false;
+    let pendingYouTubeId = '';
+
+    window.onYouTubeIframeAPIReady = () => {
+      if (pendingYouTubeId) initYouTubePlayer(pendingYouTubeId);
+    };
+
+    function loadYouTubeAPI() {
+      if (window.YT && window.YT.Player) return Promise.resolve();
+      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+        const script = document.createElement('script');
+        script.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(script);
+      }
+    }
+
+    function initYouTubePlayer(id) {
+      if (!(window.YT && window.YT.Player)) return;
+      ytReady = false;
+      if (ytPlayer && typeof ytPlayer.destroy === 'function') {
+        try { ytPlayer.destroy(); } catch (_) {}
+      }
+      ytPlayer = new YT.Player('youtubePlayer', {
+        videoId: id,
+        playerVars: { playsinline: 1, controls: 1, fs: 1, rel: 0 },
+        events: {
+          onReady: () => {
+            ytReady = true;
+            playBtn.disabled = false;
+            fullBtn.disabled = false;
+            setStatus('YouTube 已就緒。可用下方「播放 / 暫停」控制播放；全螢幕可用下方按鈕或播放器自己的按鈕。');
+          },
+          onStateChange: (event) => {
+            if (window.YT && event.data === YT.PlayerState.PLAYING) setStatus('YouTube 播放中。');
+            if (window.YT && event.data === YT.PlayerState.PAUSED) setStatus('YouTube 已暫停。');
+          },
+          onError: () => setStatus('YouTube 播放器無法播放這支影片，可能是影片擁有者限制嵌入播放。')
+        }
+      });
+    }
 
     function setStatus(message) {
       status.textContent = message;
@@ -217,18 +258,16 @@
       video.load();
       video.style.display = 'none';
       youtubePlayer.style.display = 'block';
-      playBtn.classList.add('hidden');
-      fullBtn.classList.add('hidden');
+      playBtn.classList.remove('hidden');
+      fullBtn.classList.remove('hidden');
       pipBtn.classList.add('hidden');
-      const origin = encodeURIComponent(location.origin);
-      youtubePlayer.src = 'https://www.youtube.com/embed/' + encodeURIComponent(id) +
-        '?playsinline=1&enablejsapi=1&origin=' + origin + '&autoplay=0&controls=1&fs=1&rel=0';
       playBtn.disabled = true;
-      pipBtn.disabled = false;
-      pipBtn.textContent = 'YouTube PiP';
-      pipBtn.dataset.mode = 'youtube';
       fullBtn.disabled = true;
-      setStatus('YouTube 已載入。請直接點影片中央播放；全螢幕請使用 YouTube 播放器右下角的全螢幕按鈕。');
+      pipBtn.dataset.mode = 'youtube';
+      pendingYouTubeId = id;
+      setStatus('正在載入 YouTube 播放器…');
+      loadYouTubeAPI();
+      if (window.YT && window.YT.Player) initYouTubePlayer(id);
     }
 
     function enablePlayer() {
@@ -285,6 +324,16 @@
     });
 
     playBtn.addEventListener('click', async () => {
+      if (pipBtn.dataset.mode === 'youtube') {
+        if (!ytReady || !ytPlayer) {
+          setStatus('YouTube 播放器還在載入，請稍候。');
+          return;
+        }
+        const state = ytPlayer.getPlayerState();
+        if (window.YT && state === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+        else ytPlayer.playVideo();
+        return;
+      }
       try {
         if (video.paused) {
           await video.play();
@@ -339,6 +388,17 @@
     });
 
     fullBtn.addEventListener('click', async () => {
+      if (pipBtn.dataset.mode === 'youtube') {
+        try {
+          const frame = document.getElementById('youtubePlayer');
+          if (frame.requestFullscreen) await frame.requestFullscreen();
+          else if (frame.webkitRequestFullscreen) frame.webkitRequestFullscreen();
+          else setStatus('這個手機瀏覽器不允許網頁按鈕直接將 YouTube iframe 全螢幕，請使用播放器內的全螢幕按鈕。');
+        } catch (error) {
+          setStatus('無法由外部按鈕進入全螢幕，請改用 YouTube 播放器內的全螢幕按鈕。');
+        }
+        return;
+      }
       try {
         if (video.requestFullscreen) {
           await video.requestFullscreen();
