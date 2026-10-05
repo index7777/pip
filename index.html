@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0d10" />
+  <title>PiP Player</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100svh;
+      background: #0b0d10;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+    main {
+      width: min(100%, 680px);
+      display: grid;
+      gap: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 8vw, 48px);
+      letter-spacing: -0.04em;
+    }
+    p {
+      margin: 0;
+      color: #b7bec8;
+      line-height: 1.6;
+    }
+    .card {
+      background: #15191f;
+      border: 1px solid #2a3038;
+      border-radius: 22px;
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.28);
+    }
+    video {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 16px;
+      object-fit: contain;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    button, .file-label {
+      appearance: none;
+      border: 0;
+      border-radius: 14px;
+      min-height: 50px;
+      padding: 0 16px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    button {
+      background: #fff;
+      color: #0b0d10;
+    }
+    button.secondary, .file-label {
+      background: #252b33;
+      color: #fff;
+    }
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+    input[type=file] {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .status {
+      font-size: 14px;
+      color: #99a3af;
+      min-height: 1.5em;
+    }
+    .note {
+      font-size: 13px;
+      color: #7f8a98;
+    }
+    @media (max-width: 520px) {
+      .controls { grid-template-columns: 1fr; }
+      body { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div>
+      <h1>PiP Player</h1>
+      <p>選一段影片後播放，再按「開啟 PiP」。回到手機主畫面時，支援的瀏覽器會以子母畫面繼續播放。</p>
+    </div>
+
+    <section class="card">
+      <video id="video" controls playsinline preload="metadata"></video>
+
+      <div class="controls">
+        <label class="file-label" for="fileInput">選擇影片</label>
+        <input id="fileInput" type="file" accept="video/*" />
+
+        <button id="playBtn" class="secondary" type="button" disabled>播放 / 暫停</button>
+        <button id="pipBtn" type="button" disabled>開啟 PiP</button>
+        <button id="fullBtn" class="secondary" type="button" disabled>全螢幕</button>
+      </div>
+    </section>
+
+    <p id="status" class="status">尚未選擇影片。</p>
+    <p class="note">提示：PiP 是否可用由瀏覽器與手機系統決定。iPhone / iPad Safari 通常可使用系統子母畫面；部分瀏覽器可能要求先由使用者手動播放影片。</p>
+  </main>
+
+  <script>
+    const video = document.getElementById('video');
+    const fileInput = document.getElementById('fileInput');
+    const playBtn = document.getElementById('playBtn');
+    const pipBtn = document.getElementById('pipBtn');
+    const fullBtn = document.getElementById('fullBtn');
+    const status = document.getElementById('status');
+
+    let objectUrl = '';
+
+    function setStatus(message) {
+      status.textContent = message;
+    }
+
+    function hasStandardPiP() {
+      return 'pictureInPictureEnabled' in document &&
+             document.pictureInPictureEnabled &&
+             typeof video.requestPictureInPicture === 'function';
+    }
+
+    function hasWebkitPresentationMode() {
+      return typeof video.webkitSetPresentationMode === 'function' &&
+             typeof video.webkitSupportsPresentationMode === 'function' &&
+             video.webkitSupportsPresentationMode('picture-in-picture');
+    }
+
+    function updatePiPButton() {
+      const supported = hasStandardPiP() || hasWebkitPresentationMode();
+      pipBtn.disabled = !video.src || !supported;
+
+      const inStandardPiP = document.pictureInPictureElement === video;
+      const inWebkitPiP = video.webkitPresentationMode === 'picture-in-picture';
+
+      pipBtn.textContent = (inStandardPiP || inWebkitPiP) ? '退出 PiP' : '開啟 PiP';
+
+      if (video.src && !supported) {
+        setStatus('這個瀏覽器目前沒有提供網頁 PiP API。可嘗試 Safari / Chrome，或使用播放器內建的子母畫面按鈕。');
+      }
+    }
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(file);
+      video.src = objectUrl;
+      video.load();
+
+      playBtn.disabled = false;
+      fullBtn.disabled = false;
+      setStatus('已載入：' + file.name + '。請先播放影片，再開啟 PiP。');
+      updatePiPButton();
+    });
+
+    playBtn.addEventListener('click', async () => {
+      try {
+        if (video.paused) {
+          await video.play();
+          setStatus('影片播放中。現在可以開啟 PiP。');
+        } else {
+          video.pause();
+          setStatus('影片已暫停。');
+        }
+      } catch (error) {
+        setStatus('無法播放：' + (error.message || error));
+      }
+    });
+
+    pipBtn.addEventListener('click', async () => {
+      try {
+        if (video.paused) {
+          await video.play();
+        }
+
+        if (hasStandardPiP()) {
+          if (document.pictureInPictureElement === video) {
+            await document.exitPictureInPicture();
+          } else {
+            await video.requestPictureInPicture();
+          }
+        } else if (hasWebkitPresentationMode()) {
+          const nextMode = video.webkitPresentationMode === 'picture-in-picture'
+            ? 'inline'
+            : 'picture-in-picture';
+          video.webkitSetPresentationMode(nextMode);
+        } else {
+          setStatus('目前瀏覽器不支援由網頁直接啟動 PiP。');
+        }
+      } catch (error) {
+        setStatus('PiP 啟動失敗：' + (error.message || error));
+      }
+
+      updatePiPButton();
+    });
+
+    fullBtn.addEventListener('click', async () => {
+      try {
+        if (video.requestFullscreen) {
+          await video.requestFullscreen();
+        } else if (video.webkitEnterFullscreen) {
+          video.webkitEnterFullscreen();
+        } else {
+          setStatus('這個瀏覽器不支援網頁全螢幕 API。');
+        }
+      } catch (error) {
+        setStatus('無法進入全螢幕：' + (error.message || error));
+      }
+    });
+
+    video.addEventListener('enterpictureinpicture', () => {
+      setStatus('PiP 已開啟，可以切回手機主畫面。');
+      updatePiPButton();
+    });
+
+    video.addEventListener('leavepictureinpicture', () => {
+      setStatus('已退出 PiP。');
+      updatePiPButton();
+    });
+
+    video.addEventListener('webkitpresentationmodechanged', () => {
+      if (video.webkitPresentationMode === 'picture-in-picture') {
+        setStatus('PiP 已開啟，可以切回手機主畫面。');
+      } else {
+        setStatus('已退出 PiP。');
+      }
+      updatePiPButton();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    });
+
+    updatePiPButton();
+  </script>
+</body>
+</html>
