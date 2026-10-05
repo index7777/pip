@@ -215,7 +215,7 @@
       youtubePlayer.style.display = 'block';
       const origin = encodeURIComponent(location.origin);
       youtubePlayer.src = 'https://www.youtube.com/embed/' + encodeURIComponent(id) +
-        '?playsinline=1&enablejsapi=1&origin=' + origin;
+        '?playsinline=1&enablejsapi=1&origin=' + origin + '&autoplay=0';
       playBtn.disabled = true;
       pipBtn.disabled = false;
       pipBtn.textContent = 'YouTube PiP';
@@ -366,6 +366,43 @@
         setStatus('已退出 PiP。');
       }
       updatePiPButton();
+    });
+
+    // 不在 visibilitychange/pagehide 時重建或清除播放器。
+    // 手機切到背景再回來時，盡可能保留同一個 video / iframe 實例與播放位置。
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        if (pipBtn.dataset.mode === 'youtube') {
+          setStatus('已回到播放器。YouTube 播放狀態會由原本的播放器實例繼續保留。');
+        } else if (video.src) {
+          setStatus(video.paused ? '已回到播放器，影片目前暫停。' : '已回到播放器，影片仍在播放。');
+        }
+      }
+    });
+
+    // 原生影片提供系統媒體控制；背景播放最終仍由手機瀏覽器/作業系統決定。
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler('play', async () => {
+          if (pipBtn.dataset.mode !== 'youtube') await video.play();
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+          if (pipBtn.dataset.mode !== 'youtube') video.pause();
+        });
+        navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+          if (pipBtn.dataset.mode !== 'youtube') video.currentTime = Math.max(0, video.currentTime - (details.seekOffset || 10));
+        });
+        navigator.mediaSession.setActionHandler('seekforward', (details) => {
+          if (pipBtn.dataset.mode !== 'youtube') video.currentTime = Math.min(video.duration || Infinity, video.currentTime + (details.seekOffset || 10));
+        });
+      } catch (_) {}
+    }
+
+    video.addEventListener('play', () => {
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+    });
+    video.addEventListener('pause', () => {
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     });
 
     window.addEventListener('beforeunload', () => {
